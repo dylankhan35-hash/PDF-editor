@@ -1,0 +1,47 @@
+name: Build Windows installer
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Smoke test (app imports and opens a PDF)
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python smoke_test.py
+
+      - name: Build app
+        run: pyinstaller --noconfirm --windowed --name PDFEditor app.py
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Build installer
+        run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PDFEditor-Setup
+          path: installer/PDFEditor-Setup.exe
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: installer/PDFEditor-Setup.exe
